@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     std::cout << "[MCLIENT] Message: " << singleLineMsg << std::endl;
 
     Poco::Net::DatagramSocket clientSock;
-    Poco::Net::SocketAddress serverAddress(serverIp, 8085); // Management port is 8085
+    Poco::Net::SocketAddress serverAddress(serverIp, 19925); // Management port for 24041851
     
     clientSock.sendTo(singleLineMsg.c_str(), singleLineMsg.length(), serverAddress);
     

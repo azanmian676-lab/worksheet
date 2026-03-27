@@ -8,6 +8,7 @@
  * Usage: ./ebikeClient <client_ip> <ebike_id> <csv_file> <num_ports>
  */
 
+#include <cstdint>
 #include "hal/CSVHALManager.h"
 #include "sensor/GPSSensor.h"
 #include "util/MiscUtils.h"

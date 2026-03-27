@@ -9,6 +9,7 @@
 #ifndef GPSSENSOR_H
 #define GPSSENSOR_H
 
+#include <cstdint>
 #include "hal/ISensor.h"
 #include <string>
 #include <vector>

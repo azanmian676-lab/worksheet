@@ -17,7 +17,7 @@
 #include <Poco/JSON/Object.h>
 #include <Poco/JSON/Array.h>
 #include <Poco/JSON/Parser.h>
-#include <Poco/Net/DatagramSocket.h>
+#include <Poco/Net/StreamSocket.h>
 #include <string>
 #include <iostream>
 #include <memory>
@@ -33,8 +33,8 @@
  */
 class MessageHandler {
 private:
-    /** Registry mapping ebike_id -> last known UDP sender address. */
-    static std::map<int, Poco::Net::SocketAddress> ebikeClients;
+    /** Registry mapping ebike_id -> active TCP StreamSocket session. */
+    static std::map<int, Poco::Net::StreamSocket> ebikeClients;
     /** Mutex protecting ebikeClients and the ebikes shared array. */
     static std::mutex registryMutex;
 
@@ -49,7 +49,7 @@ public:
      */
     static void handleMessage(const std::string& msg,
                               Poco::JSON::Array::Ptr ebikes,
-                              Poco::Net::DatagramSocket& socket,
+                              Poco::Net::StreamSocket& socket,
                               const Poco::Net::SocketAddress& senderUrl) {
         try {
             Poco::JSON::Parser parser;
@@ -68,16 +68,38 @@ public:
             if (msgType == "JOIN") {
                 int ebikeId = jsonObj->getValue<int>("ebike_id");
 
-                // Register the sender address for future command routing
                 {
                     std::lock_guard<std::mutex> lock(registryMutex);
-                    ebikeClients[ebikeId] = senderUrl;
+                    ebikeClients[ebikeId] = socket;
+
+                    // [NEW] Manually Register in ebikes array for immediate tracking
+                    bool replaced = false;
+                    for (size_t i = 0; i < ebikes->size(); i++) {
+                        if (ebikes->getObject(i)->getObject("properties")->getValue<int>("id") == ebikeId) {
+                            replaced = true; break;
+                        }
+                    }
+                    if (!replaced) {
+                        Poco::JSON::Object::Ptr placeholder = new Poco::JSON::Object();
+                        placeholder->set("type", "Feature");
+                        Poco::JSON::Object::Ptr geom = new Poco::JSON::Object();
+                        geom->set("type", "Point");
+                        Poco::JSON::Array::Ptr coords = new Poco::JSON::Array();
+                        coords->add(0.0); coords->add(0.0); // Placeholder coords
+                        geom->set("coordinates", coords);
+                        placeholder->set("geometry", geom);
+                        Poco::JSON::Object::Ptr props = new Poco::JSON::Object();
+                        props->set("id", ebikeId);
+                        props->set("status", "joined");
+                        placeholder->set("properties", props);
+                        ebikes->add(placeholder);
+                    }
                 }
                 std::cout << "[SOCKETS] eBike " << ebikeId << " joined" << std::endl;
+                std::cout << "[DEBUG] Total tracked ebikes: " << ebikes->size() << std::endl;
 
-                // Send JACK (Join ACKnowledgement) with sampling interval config
                 std::string jack = "{\"status\":\"success\", \"data_interval\":5}";
-                socket.sendTo(jack.c_str(), jack.length(), senderUrl);
+                socket.sendBytes(jack.c_str(), jack.length());
             }
 
             // ---------------------------------------------------------------
@@ -149,17 +171,21 @@ public:
                         int targetId = targetIds->getElement<int>(i);
                         auto it = ebikeClients.find(targetId);
                         if (it != ebikeClients.end()) {
-                            // Send action to the eBike client — client checks "action" key
+                            // Send action to the eBike client
                             std::string cmd = "{\"action\":\"" + action
                                             + "\", \"ebike_id\":" + std::to_string(targetId) + "}";
-                            socket.sendTo(cmd.c_str(), cmd.length(), it->second);
+                            try {
+                                it->second.sendBytes(cmd.c_str(), cmd.length());
+                            } catch (...) {
+                                std::cerr << "[MHANDLER] Failed to forward COMMAND to " << targetId << std::endl;
+                            }
                         }
                     }
                 }
 
                 // Acknowledge receipt to the management client
                 std::string ack = "{\"ebike_id\": -1, \"status\": \"success\"}";
-                socket.sendTo(ack.c_str(), ack.length(), senderUrl);
+                socket.sendBytes(ack.c_str(), ack.length());
             }
 
             // ---------------------------------------------------------------
@@ -184,13 +210,15 @@ public:
                     std::lock_guard<std::mutex> lock(registryMutex);
                     std::string setupMsg = "{\"data_interval\":" + std::to_string(interval) + "}";
                     for (auto& kv : ebikeClients) {
-                        socket.sendTo(setupMsg.c_str(), setupMsg.length(), kv.second);
+                        try {
+                            kv.second.sendBytes(setupMsg.c_str(), setupMsg.length());
+                        } catch (...) {}
                     }
                 }
 
                 // Acknowledge to management client
                 std::string ack = "{\"status\": \"success\"}";
-                socket.sendTo(ack.c_str(), ack.length(), senderUrl);
+                socket.sendBytes(ack.c_str(), ack.length());
             }
 
         } catch (Poco::Exception& e) {
@@ -200,7 +228,7 @@ public:
 };
 
 // C++17 inline static member definitions (header-only)
-inline std::map<int, Poco::Net::SocketAddress> MessageHandler::ebikeClients;
+inline std::map<int, Poco::Net::StreamSocket> MessageHandler::ebikeClients;
 inline std::mutex MessageHandler::registryMutex;
 
 #endif // MESSAGEHANDLER_H

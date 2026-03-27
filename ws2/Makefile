@@ -15,12 +15,12 @@ CATCH2_DIR = /opt/iot
 # Server library paths
 INCLUDES = -I$(POCO_DIR)/include -I$(INCLUDE_DIR) -I$(INCLUDE_DIR)/web -I$(INCLUDE_DIR)/util -I$(SRC_DIR)
 LIBS = -L$(LIB_DIR) -lwebserver -L$(POCO_DIR)/lib -lPocoNet -lPocoUtil -lPocoFoundation -lPocoJSON -lpthread
-LDFLAGS = -Wl,-rpath,$(POCO_DIR)/lib
+LDFLAGS = -Wl,-rpath,$(POCO_DIR)/lib:$(LIB_DIR)
 
 # Clients library paths
 CL_INCLUDES = -I$(INCLUDE_DIR)
 CLILIBS = -L$(LIB_DIR) -lclient -L$(POCO_DIR)/lib -lPocoNet -lPocoUtil -lPocoFoundation -lPocoJSON -lpthread
-CL_LDFLAGS = -Wl,-rpath,$(POCO_DIR)/lib
+CL_LDFLAGS = -Wl,-rpath,$(POCO_DIR)/lib:$(LIB_DIR)
 
 # Test paths
 TEST_INCLUDES = -I$(CATCH2_DIR) $(INCLUDES) $(CL_INCLUDES)
