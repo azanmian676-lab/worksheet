@@ -1,9 +1,0 @@
-client:
-    port: 19926
-    management_port: 19927
-    max_readings: 10
-    gps_sensor_id: 0
-    gps_hal_port: 0
-server:
-    ip: 127.0.0.1
-    port: 19924 # Matches the gateway unique UDP port

@@ -1,6 +1,0 @@
-webserver:
-    port: 9924 # Official allocated port for student 24041851
-server:
-    ip: 127.0.0.1
-    port: 19924 # Using official-base + 10000 for UDP
-    management_port: 19925
